@@ -1,0 +1,63 @@
+AlarmFsm:
+	CPI	STATE_ALARM_FSM, ALARM_FSM_ACTIVE
+	BREQ	alarmActive
+	CPI	STATE_ALARM_FSM, ALARM_FSM_INACTIVE
+	BREQ	alarmInactive
+	CPI	STATE_ALARM_FSM, ALARM_FSM_TRIGGERED
+	BREQ	alarmTriggered
+	RET
+
+;==state==
+alarmActive:
+	SBIC	ALARM_PIN, ALARM_DQ
+	RJMP	triggerAlarm
+	READ_MSG	MSG_READ_VALID_KEY
+	BRTS	inactivateAlarm
+	RET
+triggerAlarm:
+	CBI	RELAY_PORT, RELAY_DQ
+	LDI	STATE_ALARM_FSM, ALARM_FSM_TRIGGERED
+	LDI	R16, ALARM_TRIGGER_TIME
+	STS	virtual_timers + TIMER_ALARM_TRIGGER, R16
+	RET
+inactivateAlarm:
+	LDI	STATE_ALARM_FSM, ALARM_FSM_INACTIVE
+	RET
+
+;==state==
+alarmInactive:
+	READ_MSG	MSG_READ_VALID_KEY
+	BRTS	activateAlarm
+	RET
+activateAlarm:
+	LDI	STATE_ALARM_FSM, ALARM_FSM_ACTIVE
+	RET
+;==state==
+alarmTriggered:
+	READ_MSG	MSG_READ_VALID_KEY
+	BRTS	inactivateTriggeredAlarm
+	LDS	R16, virtual_timers + TIMER_ALARM_TRIGGER
+	CPI	R16, 0
+	BREQ	checkAndStop
+	RET
+inactivateTriggeredAlarm:
+	SBI	RELAY_PORT, RELAY_DQ
+	LDI	STATE_ALARM_FSM, ALARM_FSM_INACTIVE
+	RET
+checkAndStop:
+	SBIS	ALARM_PIN, ALARM_DQ
+	RJMP	stopTriggeredAlarm
+	LDI	R16, ALARM_TRIGGER_TIME
+	STS	virtual_timers + TIMER_ALARM_TRIGGER, R16
+	RET
+stopTriggeredAlarm:
+	SBI	RELAY_PORT, RELAY_DQ
+	LDI	STATE_ALARM_FSM, ALARM_FSM_ACTIVE
+	RET
+
+InitAlarmFsm:
+	; Инициализация порта с реле
+	SBI	RELAY_DDR, RELAY_DQ
+	SBI	RELAY_PORT, RELAY_DQ
+	LDI	STATE_ALARM_FSM, ALARM_FSM_ACTIVE
+	RET
